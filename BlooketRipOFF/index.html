@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PeerBlocks 25 – Multiplayer PeerJS Quiz</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #020617;
+      color: #e5e7eb;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      padding: 1rem;
+    }
+    h1 {
+      margin: 0.2rem 0;
+      font-size: 1.9rem;
+      color: #fbbf24;
+    }
+    .tagline {
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+    main {
+      width: 100%;
+      max-width: 1100px;
+      padding: 1rem;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr);
+      gap: 1rem;
+    }
+    .card {
+      background: #020617;
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      border: 1px solid #1f2937;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    label {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+    input, select, textarea {
+      padding: 0.4rem 0.6rem;
+      border-radius: 0.4rem;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      outline: none;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: #fbbf24;
+    }
+    button {
+      padding: 0.45rem 0.9rem;
+      border-radius: 0.5rem;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      background: #fbbf24;
+      color: #111827;
+      transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.15s;
+      font-size: 0.9rem;
+    }
+    button:hover {
+      background: #facc15;
+    }
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5) inset;
+    }
+    button[disabled] {
+      opacity: 0.5;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+    .status {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+      min-height: 1.2em;
+    }
+    .small {
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #020617;
+      border: 1px solid #374151;
+      color: #9ca3af;
+      margin-left: 0.25rem;
+    }
+    .question {
+      font-size: 1.1rem;
+      margin-top: 0.5rem;
+      color: #e5e7eb;
+    }
+    .question span.tag {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-right: 0.4rem;
+    }
+    .game-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .answer-btn {
+      flex: 1 1 80px;
+      min-width: 80px;
+      text-align: center;
+      padding: 0.6rem 0.4rem;
+      border-radius: 0.6rem;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #e5e7eb;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.1s, transform 0.05s, box-shadow 0.05s;
+    }
+    .answer-btn:hover {
+      background: #1f2937;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.5);
+      transform: translateY(-1px);
+    }
+    .answer-btn.correct {
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+    .answer-btn.wrong {
+      background: #b91c1c;
+      border-color: #b91c1c;
+    }
+    .answer-btn.disabled {
+      opacity: 0.5;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+    .scoreboard {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .score-pill {
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #020617;
+      border: 1px solid #374151;
+    }
+    .you {
+      color: #22c55e;
+    }
+    .round-info {
+      font-size: 0.85rem;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+    }
+    .double-tag {
+      color: #f97316;
+      font-weight: 600;
+    }
+    .host-only-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .round-list {
+      max-height: 220px;
+      overflow-y: auto;
+      margin-top: 0.4rem;
+      border-radius: 0.5rem;
+      border: 1px solid #1f2937;
+      padding: 0.4rem;
+      background: #020617;
+      font-size: 0.8rem;
+    }
+    .round-item {
+      padding: 0.3rem 0.4rem;
+      border-radius: 0.4rem;
+      margin-bottom: 0.25rem;
+      border: 1px solid #111827;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .round-item.current {
+      border-color: #fbbf24;
+      background: #111827;
+    }
+    .round-meta {
+      color: #9ca3af;
+      font-size: 0.75rem;
+    }
+    .player-list {
+      max-height: 260px;
+      overflow-y: auto;
+      margin-top: 0.4rem;
+      border-radius: 0.5rem;
+      border: 1px solid #1f2937;
+      padding: 0.4rem;
+      background: #020617;
+      font-size: 0.8rem;
+    }
+    .player-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.25rem 0.35rem;
+      border-radius: 0.4rem;
+      border: 1px solid #111827;
+      margin-bottom: 0.25rem;
+    }
+    .player-name {
+      font-weight: 500;
+    }
+    .kick-btn {
+      background: #ef4444;
+      color: #fee2e2;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+    }
+    .kick-btn:hover {
+      background: #f97373;
+    }
+    .leaderboard {
+      max-height: 320px;
+      overflow-y: auto;
+      margin-top: 0.4rem;
+      border-radius: 0.5rem;
+      border: 1px solid #1f2937;
+      padding: 0.4rem;
+      background: #020617;
+      font-size: 0.85rem;
+    }
+    .lb-row {
+      display: grid;
+      grid-template-columns: 2rem 1fr 4rem;
+      gap: 0.4rem;
+      align-items: center;
+      padding: 0.25rem 0.35rem;
+      border-radius: 0.4rem;
+      border: 1px solid #111827;
+      margin-bottom: 0.25rem;
+    }
+    .lb-row.me {
+      border-color: #22c55e;
+      background: #022c22;
+    }
+    .lb-rank {
+      text-align: center;
+      font-weight: 600;
+      color: #9ca3af;
+    }
+    .lb-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lb-score {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .footer {
+      margin-top: auto;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>PeerBlocks 25</h1>
+  <div class="tagline">Blooket-style PeerJS game – up to 25 players, rounds, leaderboard, kicks, double points</div>
+</header>
+
+<main>
+  <!-- LEFT: Connection + Game -->
+  <section>
+    <div class="card" id="connection-card">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <label>Mode:</label>
+          <select id="mode">
+            <option value="host">Host game</option>
+            <option value="join">Join game</option>
+          </select>
+        </div>
+        <div>
+          <label>Your name:</label>
+          <input id="playerName" placeholder="e.g. Alex" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top: 0.75rem;">
+        <div id="hostControls">
+          <button id="btnCreate">Create room</button>
+          <span class="status" id="hostStatus"></span>
+          <div class="small" id="roomInfo"></div>
+        </div>
+
+        <div id="joinControls" class="hidden">
+          <label>Room ID:</label>
+          <input id="joinId" placeholder="paste room id" />
+          <button id="btnJoin">Join</button>
+          <span class="status" id="joinStatus"></span>
+        </div>
+      </div>
+      <div class="small" style="margin-top:0.4rem;">
+        Max players: 25. Open this page on multiple devices to test.
+      </div>
+    </div>
+
+    <div class="card" id="game-card">
+      <div class="scoreboard">
+        <div class="score-pill you">You: <span id="youScore">0</span></div>
+        <div class="score-pill">Players: <span id="playerCount">0</span></div>
+      </div>
+      <div class="question">
+        <span class="tag">Question</span>
+        <span id="questionText">Waiting for connection…</span>
+      </div>
+      <div class="round-info">
+        Round: <span id="roundIndex">-</span> / <span id="roundTotal">0</span>
+        &nbsp;|&nbsp;
+        <span id="roundDouble" class="double-tag hidden">DOUBLE POINTS</span>
+      </div>
+
+      <div class="game-buttons" id="buttonContainer">
+        <!-- buttons generated here -->
+      </div>
+
+      <div class="status" id="gameStatus"></div>
+    </div>
+  </section>
+
+  <!-- RIGHT: Host tools + Leaderboard -->
+  <section>
+    <div class="card" id="hostPanel" class="hidden">
+      <div class="host-only-title">Host – Round builder</div>
+      <div class="row" style="margin-bottom:0.4rem;">
+        <div style="flex:1 1 100%;">
+          <label>Prompt:</label>
+          <input id="rbPrompt" placeholder="e.g. Click the biggest number" style="width:100%; margin-top:0.2rem;" />
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0.4rem;">
+        <div>
+          <label>Buttons:</label>
+          <input id="rbButtons" type="number" min="2" max="12" value="4" style="width:4rem;" />
+        </div>
+        <div>
+          <label>Correct button index:</label>
+          <input id="rbCorrect" type="number" min="1" max="12" value="1" style="width:4rem;" />
+        </div>
+        <div>
+          <label>Double points:</label>
+          <input id="rbDouble" type="checkbox" />
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0.4rem;">
+        <button id="btnAddRound">Add round</button>
+        <button id="btnClearRounds" style="background:#ef4444; color:#fee2e2;">Clear all rounds</button>
+        <span class="status" id="roundBuilderStatus"></span>
+      </div>
+      <div class="round-list" id="roundList"></div>
+      <div class="row" style="margin-top:0.4rem;">
+        <button id="btnPrevRound">Prev round</button>
+        <button id="btnNextRound">Next round</button>
+        <button id="btnRestartGame" style="margin-left:auto;">Reset scores</button>
+      </div>
+      <div class="status" id="hostGameStatus"></div>
+    </div>
+
+    <div class="card" id="playersCard">
+      <div class="host-only-title">Players (host can kick)</div>
+      <div class="player-list" id="playerList"></div>
+    </div>
+
+    <div class="card">
+      <div class="host-only-title">Leaderboard</div>
+      <div class="leaderboard" id="leaderboard"></div>
+    </div>
+  </section>
+</main>
+
+<div class="footer">
+  PeerBlocks 25 – demo only. Uses PeerJS CDN. Host shares room ID; others join and play.
+</div>
+
+<!-- PeerJS CDN -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+  // --- Global state ---
+  let peer = null;
+  let isHost = true;
+  let myName = "";
+  let myId = null; // client-side id assigned by host
+  let connToHost = null; // for clients
+
+  // Host state
+  const MAX_PLAYERS = 25;
+  let hostConnections = {}; // peerId -> DataConnection
+  let players = {}; // peerId -> {id, name, score, connected}
+  let rounds = []; // {id, prompt, buttons, correctIndex, double}
+  let currentRoundIndex = -1;
+  let roundActive = false;
+  let roundAnswers = {}; // peerId -> {choice, correct, rank, points}
+  let correctOrder = []; // peerIds in order of correct answers
+
+  // DOM
+  const modeSelect = document.getElementById("mode");
+  const playerNameInput = document.getElementById("playerName");
+  const hostControls = document.getElementById("hostControls");
+  const joinControls = document.getElementById("joinControls");
+  const hostStatus = document.getElementById("hostStatus");
+  const joinStatus = document.getElementById("joinStatus");
+  const roomInfo = document.getElementById("roomInfo");
+  const btnCreate = document.getElementById("btnCreate");
+  const btnJoin = document.getElementById("btnJoin");
+  const joinIdInput = document.getElementById("joinId");
+
+  const youScoreEl = document.getElementById("youScore");
+  const playerCountEl = document.getElementById("playerCount");
+  const questionText = document.getElementById("questionText");
+  const gameStatus = document.getElementById("gameStatus");
+  const buttonContainer = document.getElementById("buttonContainer");
+  const roundIndexEl = document.getElementById("roundIndex");
+  const roundTotalEl = document.getElementById("roundTotal");
+  const roundDoubleEl = document.getElementById("roundDouble");
+
+  const hostPanel = document.getElementById("hostPanel");
+  const rbPrompt = document.getElementById("rbPrompt");
+  const rbButtons = document.getElementById("rbButtons");
+  const rbCorrect = document.getElementById("rbCorrect");
+  const rbDouble = document.getElementById("rbDouble");
+  const btnAddRound = document.getElementById("btnAddRound");
+  const btnClearRounds = document.getElementById("btnClearRounds");
+  const roundBuilderStatus = document.getElementById("roundBuilderStatus");
+  const roundList = document.getElementById("roundList");
+  const btnPrevRound = document.getElementById("btnPrevRound");
+  const btnNextRound = document.getElementById("btnNextRound");
+  const btnRestartGame = document.getElementById("btnRestartGame");
+  const hostGameStatus = document.getElementById("hostGameStatus");
+
+  const playerList = document.getElementById("playerList");
+  const leaderboardEl = document.getElementById("leaderboard");
+
+  // --- Helpers ---
+  function logStatus(el, msg) {
+    el.textContent = msg || "";
+  }
+
+  function ensureName() {
+    const val = playerNameInput.value.trim();
+    if (!val) {
+      alert("Enter a name first.");
+      return null;
+    }
+    return val;
+  }
+
+  function updatePlayerCount() {
+    const count = Object.values(players).filter(p => p.connected).length;
+    playerCountEl.textContent = count;
+  }
+
+  function updateYouScore() {
+    if (!myId) return;
+    const me = Object.values(players).find(p => p.id === myId);
+    youScoreEl.textContent = me ? me.score : 0;
+  }
+
+  function setQuestion(text) {
+    questionText.textContent = text;
+  }
+
+  function setGameStatus(text) {
+    gameStatus.textContent = text || "";
+  }
+
+  function setHostGameStatus(text) {
+    hostGameStatus.textContent = text || "";
+  }
+
+  function clearButtons() {
+    buttonContainer.innerHTML = "";
+  }
+
+  function buildButtons(count) {
+    clearButtons();
+    for (let i = 1; i <= count; i++) {
+      const btn = document.createElement("button");
+      btn.className = "answer-btn";
+      btn.textContent = "Button " + i;
+      btn.dataset.index = String(i);
+      btn.addEventListener("click", () => handleClientAnswer(i));
+      buttonContainer.appendChild(btn);
+    }
+  }
+
+  function disableButtons() {
+    const btns = buttonContainer.querySelectorAll(".answer-btn");
+    btns.forEach(b => {
+      b.classList.add("disabled");
+      b.disabled = true;
+    });
+  }
+
+  function resetButtonStyles() {
+    const btns = buttonContainer.querySelectorAll(".answer-btn");
+    btns.forEach(b => {
+      b.classList.remove("correct", "wrong", "disabled");
+      b.disabled = false;
+    });
+  }
+
+  function highlightButtons(correctIndex, myChoice, wasCorrect) {
+    const btns = buttonContainer.querySelectorAll(".answer-btn");
+    btns.forEach(b => {
+      const idx = Number(b.dataset.index);
+      if (idx === correctIndex) {
+        b.classList.add("correct");
+      }
+      if (idx === myChoice && !wasCorrect) {
+        b.classList.add("wrong");
+      }
+    });
+  }
+
+  function renderRoundInfo() {
+    roundTotalEl.textContent = rounds.length;
+    if (currentRoundIndex >= 0 && currentRoundIndex < rounds.length) {
+      roundIndexEl.textContent = currentRoundIndex + 1;
+      const r = rounds[currentRoundIndex];
+      if (r.double) {
+        roundDoubleEl.classList.remove("hidden");
+      } else {
+        roundDoubleEl.classList.add("hidden");
+      }
+    } else {
+      roundIndexEl.textContent = "-";
+      roundDoubleEl.classList.add("hidden");
+    }
+  }
+
+  function renderRoundList() {
+    roundList.innerHTML = "";
+    rounds.forEach((r, idx) => {
+      const div = document.createElement("div");
+      div.className = "round-item" + (idx === currentRoundIndex ? " current" : "");
+      const left = document.createElement("div");
+      left.innerHTML = `<strong>#${idx + 1}</strong> ${r.prompt}`;
+      const right = document.createElement("div");
+      right.className = "round-meta";
+      right.textContent = `${r.buttons} btns | correct ${r.correctIndex}` + (r.double ? " | DOUBLE" : "");
+      div.appendChild(left);
+      div.appendChild(right);
+      roundList.appendChild(div);
+    });
+    renderRoundInfo();
+  }
+
+  function renderPlayerList() {
+    playerList.innerHTML = "";
+    if (!isHost) {
+      playerList.innerHTML = '<div class="small">Only host sees player list.</div>';
+      return;
+    }
+    const arr = Object.values(players).sort((a, b) => a.name.localeCompare(b.name));
+    arr.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "player-row";
+      const left = document.createElement("div");
+      left.innerHTML = `<span class="player-name">${p.name}</span> <span class="small">(${p.id})</span>`;
+      const right = document.createElement("div");
+      const spanScore = document.createElement("span");
+      spanScore.className = "small";
+      spanScore.textContent = `Score: ${p.score}`;
+      right.appendChild(spanScore);
+      if (isHost && p.connected) {
+        const btnKick = document.createElement("button");
+        btnKick.className = "kick-btn";
+        btnKick.textContent = "Kick";
+        btnKick.addEventListener("click", () => kickPlayer(p.peerId));
+        right.appendChild(btnKick);
+      }
+      row.appendChild(left);
+      row.appendChild(right);
+      playerList.appendChild(row);
+    });
+  }
+
+  function renderLeaderboard() {
+    leaderboardEl.innerHTML = "";
+    const arr = Object.values(players)
+      .filter(p => p.connected)
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    arr.forEach((p, idx) => {
+      const row = document.createElement("div");
+      row.className = "lb-row" + (p.id === myId ? " me" : "");
+      const rank = document.createElement("div");
+      rank.className = "lb-rank";
+      rank.textContent = idx + 1;
+      const name = document.createElement("div");
+      name.className = "lb-name";
+      name.textContent = p.name;
+      const score = document.createElement("div");
+      score.className = "lb-score";
+      score.textContent = p.score;
+      row.appendChild(rank);
+      row.appendChild(name);
+      row.appendChild(score);
+      leaderboardEl.appendChild(row);
+    });
+  }
+
+  function broadcastLeaderboard() {
+    if (!isHost) return;
+    const payload = Object.values(players)
+      .filter(p => p.connected)
+      .map(p => ({ id: p.id, name: p.name, score: p.score, peerId: p.peerId }));
+    Object.values(hostConnections).forEach(c => {
+      if (c.open) {
+        c.send({ type: "leaderboard", players: payload });
+      }
+    });
+    renderLeaderboard();
+    renderPlayerList();
+    updatePlayerCount();
+  }
+
+  // --- Host: scoring logic ---
+  function scoreForRank(rank, isDouble) {
+    let base = 0;
+    if (rank === 1) base = 300;
+    else if (rank === 2) base = 200;
+    else if (rank === 3) base = 100;
+    else base = 50;
+    if (isDouble) base *= 2;
+    return base;
+  }
+
+  function hostHandleAnswer(peerId, choice) {
+    if (!roundActive) return;
+    if (!players[peerId]) return;
+    if (!rounds[currentRoundIndex]) return;
+    if (roundAnswers[peerId]) return; // already answered this round
+
+    const round = rounds[currentRoundIndex];
+    const correct = choice === round.correctIndex;
+
+    if (!correct) {
+      roundAnswers[peerId] = { choice, correct: false, rank: null, points: 0 };
+      // notify that they were wrong
+      const conn = hostConnections[peerId];
+      if (conn && conn.open) {
+        conn.send({
+          type: "answerResult",
+          roundId: round.id,
+          correct: false,
+          correctIndex: round.correctIndex,
+          choice,
+          rank: null,
+          points: 0,
+          totalScore: players[peerId].score
+        });
+      }
+      return;
+    }
+
+    // correct answer
+    correctOrder.push(peerId);
+    const rank = correctOrder.length;
+    const points = scoreForRank(rank, round.double);
+    players[peerId].score += points;
+    roundAnswers[peerId] = { choice, correct: true, rank, points };
+
+    const conn = hostConnections[peerId];
+    if (conn && conn.open) {
+      conn.send({
+        type: "answerResult",
+        roundId: round.id,
+        correct: true,
+        correctIndex: round.correctIndex,
+        choice,
+        rank,
+        points,
+        totalScore: players[peerId].score
+      });
+    }
+
+    broadcastLeaderboard();
+  }
+
+  function hostStartRound(index) {
+    if (!isHost) return;
+    if (index < 0 || index >= rounds.length) {
+      setHostGameStatus("No such round.");
+      return;
+    }
+    currentRoundIndex = index;
+    const round = rounds[currentRoundIndex];
+    roundActive = true;
+    roundAnswers = {};
+    correctOrder = [];
+
+    renderRoundList();
+    renderRoundInfo();
+
+    setQuestion(round.prompt);
+    setGameStatus("Round active – click a button!");
+    resetButtonStyles();
+    buildButtons(round.buttons);
+
+    // broadcast round to all players
+    Object.values(hostConnections).forEach(c => {
+      if (c.open) {
+        c.send({
+          type: "round",
+          roundId: round.id,
+          prompt: round.prompt,
+          buttons: round.buttons,
+          double: round.double
+        });
+      }
+    });
+    setHostGameStatus(`Started round #${currentRoundIndex + 1}`);
+  }
+
+  function hostResetScores() {
+    Object.values(players).forEach(p => {
+      p.score = 0;
+    });
+    broadcastLeaderboard();
+    setHostGameStatus("Scores reset.");
+  }
+
+  function kickPlayer(peerId) {
+    const conn = hostConnections[peerId];
+    if (conn && conn.open) {
+      conn.send({ type: "kicked", reason: "Host removed you from the game." });
+      conn.close();
+    }
+    if (players[peerId]) {
+      players[peerId].connected = false;
+    }
+    delete hostConnections[peerId];
+    broadcastLeaderboard();
+    renderPlayerList();
+  }
+
+  // --- PeerJS: Host setup ---
+  function createPeerHost() {
+    if (peer) return;
+    peer = new Peer(undefined, { debug: 2 });
+
+    peer.on("open", id => {
+      roomInfo.textContent = "Room ID: " + id + " (share this with players)";
+      logStatus(hostStatus, "Room created. Waiting for players…");
+    });
+
+    peer.on("connection", c => {
+      const peerId = c.peer;
+      if (Object.values(players).filter(p => p.connected).length >= MAX_PLAYERS) {
+        c.on("open", () => {
+          c.send({ type: "full", message: "Room is full (max 25 players)." });
+          c.close();
+        });
+        return;
+      }
+
+      hostConnections[peerId] = c;
+
+      c.on("open", () => {
+        // wait for hello with name
+      });
+
+      c.on("data", msg => {
+        if (!msg || typeof msg !== "object") return;
+        switch (msg.type) {
+          case "hello":
+            {
+              const name = String(msg.name || "Player").slice(0, 20);
+              const newId = Object.keys(players).length + 1;
+              players[peerId] = {
+                peerId,
+                id: newId,
+                name,
+                score: 0,
+                connected: true
+              };
+              // send back welcome with assigned id
+              c.send({
+                type: "welcome",
+                id: newId,
+                name,
+                rounds: rounds,
+                currentRoundIndex,
+                leaderboard: Object.values(players).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  score: p.score,
+                  peerId: p.peerId
+                }))
+              });
+              broadcastLeaderboard();
+              renderPlayerList();
+              setHostGameStatus(`Player joined: ${name}`);
+            }
+            break;
+          case "answer":
+            hostHandleAnswer(peerId, msg.choice);
+            break;
+        }
+      });
+
+      c.on("close", () => {
+        if (players[peerId]) {
+          players[peerId].connected = false;
+        }
+        delete hostConnections[peerId];
+        broadcastLeaderboard();
+        renderPlayerList();
+      });
+
+      c.on("error", err => {
+        console.error("Conn error", err);
+      });
+    });
+
+    peer.on("error", err => {
+      console.error(err);
+      logStatus(hostStatus, "Peer error: " + err.type);
+    });
+  }
+
+  // --- PeerJS: Client setup ---
+  function joinPeer(roomId) {
+    if (peer) return;
+    peer = new Peer(undefined, { debug: 2 });
+
+    peer.on("open", () => {
+      logStatus(joinStatus, "Connecting to room…");
+      connToHost = peer.connect(roomId);
+      connToHost.on("open", () => {
+        connToHost.send({ type: "hello", name: myName });
+      });
+
+      connToHost.on("data", msg => {
+        if (!msg || typeof msg !== "object") return;
+        switch (msg.type) {
+          case "full":
+            logStatus(joinStatus, "Room is full.");
+            setGameStatus("Room is full (max 25 players).");
+            connToHost.close();
+            break;
+          case "welcome":
+            myId = msg.id;
+            setGameStatus("Connected as " + msg.name + ". Waiting for host to start rounds.");
+            // initialize leaderboard from host
+            players = {};
+            msg.leaderboard.forEach(p => {
+              players[p.peerId || ("peer-" + p.id)] = {
+                peerId: p.peerId || ("peer-" + p.id),
+                id: p.id,
+                name: p.name,
+                score: p.score,
+                connected: true
+              };
+            });
+            updateYouScore();
+            renderLeaderboardFromHost(msg.leaderboard);
+            break;
+          case "round":
+            handleClientRound(msg);
+            break;
+          case "answerResult":
+            handleClientAnswerResult(msg);
+            break;
+          case "leaderboard":
+            renderLeaderboardFromHost(msg.players);
+            break;
+          case "kicked":
+            setGameStatus("You were kicked: " + (msg.reason || ""));
+            disableButtons();
+            connToHost.close();
+            break;
+        }
+      });
+
+      connToHost.on("close", () => {
+        setGameStatus("Disconnected from host.");
+      });
+
+      connToHost.on("error", err => {
+        console.error(err);
+        logStatus(joinStatus, "Connection error: " + err.type);
+      });
+    });
+
+    peer.on("error", err => {
+      console.error(err);
+      logStatus(joinStatus, "Peer error: " + err.type);
+    });
+  }
+
+  function renderLeaderboardFromHost(list) {
+    // list: [{id,name,score,peerId}]
+    leaderboardEl.innerHTML = "";
+    const sorted = list.slice().sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    sorted.forEach((p, idx) => {
+      const row = document.createElement("div");
+      row.className = "lb-row" + (p.id === myId ? " me" : "");
+      const rank = document.createElement("div");
+      rank.className = "lb-rank";
+      rank.textContent = idx + 1;
+      const name = document.createElement("div");
+      name.className = "lb-name";
+      name.textContent = p.name;
+      const score = document.createElement("div");
+      score.className = "lb-score";
+      score.textContent = p.score;
+      row.appendChild(rank);
+      row.appendChild(name);
+      row.appendChild(score);
+      leaderboardEl.appendChild(row);
+    });
+    const me = sorted.find(p => p.id === myId);
+    youScoreEl.textContent = me ? me.score : 0;
+    playerCountEl.textContent = sorted.length;
+  }
+
+  // --- Client game handlers ---
+  function handleClientRound(msg) {
+    resetButtonStyles();
+    buildButtons(msg.buttons);
+    setQuestion(msg.prompt);
+    setGameStatus(msg.double ? "DOUBLE POINTS round – be fast!" : "Round active – click a button!");
+    roundIndexEl.textContent = "?";
+    roundTotalEl.textContent = "?";
+    if (msg.double) {
+      roundDoubleEl.classList.remove("hidden");
+    } else {
+      roundDoubleEl.classList.add("hidden");
+    }
+  }
+
+  function handleClientAnswer(choice) {
+    if (!connToHost || !connToHost.open) {
+      setGameStatus("Not connected to host.");
+      return;
+    }
+    disableButtons();
+    setGameStatus("Answer sent – waiting for result…");
+    connToHost.send({ type: "answer", choice });
+  }
+
+  function handleClientAnswerResult(msg) {
+    const wasCorrect = !!msg.correct;
+    const correctIndex = msg.correctIndex;
+    const choice = msg.choice;
+    highlightButtons(correctIndex, choice, wasCorrect);
+    youScoreEl.textContent = msg.totalScore;
+    let text = "";
+    if (!wasCorrect) {
+      text = "Wrong – you get 0 points.";
+    } else {
+      if (msg.rank === 1) text = `Correct – FIRST! +${msg.points} points`;
+      else if (msg.rank === 2) text = `Correct – SECOND! +${msg.points} points`;
+      else if (msg.rank === 3) text = `Correct – THIRD! +${msg.points} points`;
+      else text = `Correct – +${msg.points} points`;
+    }
+    setGameStatus(text);
+  }
+
+  // --- Event wiring ---
+  modeSelect.addEventListener("change", () => {
+    isHost = modeSelect.value === "host";
+    hostControls.classList.toggle("hidden", !isHost);
+    joinControls.classList.toggle("hidden", isHost);
+    hostPanel.classList.toggle("hidden", !isHost);
+    if (!isHost) {
+      setGameStatus("Join mode – enter room ID and join.");
+    } else {
+      setGameStatus("Host mode – create a room.");
+    }
+  });
+
+  btnCreate.addEventListener("click", () => {
+    const name = ensureName();
+    if (!name) return;
+    myName = name;
+    isHost = true;
+    createPeerHost();
+    btnCreate.disabled = true;
+    setQuestion("Waiting for players… build rounds on the right.");
+  });
+
+  btnJoin.addEventListener("click", () => {
+    const name = ensureName();
+    if (!name) return;
+    const roomId = joinIdInput.value.trim();
+    if (!roomId) {
+      alert("Enter a room ID.");
+      return;
+    }
+    myName = name;
+    isHost = false;
+    joinPeer(roomId);
+    btnJoin.disabled = true;
+  });
+
+  btnAddRound.addEventListener("click", () => {
+    const prompt = rbPrompt.value.trim();
+    let buttons = Number(rbButtons.value);
+    let correctIndex = Number(rbCorrect.value);
+    const double = rbDouble.checked;
+
+    if (!prompt) {
+      roundBuilderStatus.textContent = "Enter a prompt.";
+      return;
+    }
+    if (isNaN(buttons) || buttons < 2 || buttons > 12) {
+      roundBuilderStatus.textContent = "Buttons must be between 2 and 12.";
+      return;
+    }
+    if (isNaN(correctIndex) || correctIndex < 1 || correctIndex > buttons) {
+      roundBuilderStatus.textContent = "Correct index must be between 1 and number of buttons.";
+      return;
+    }
+
+    const round = {
+      id: Date.now() + "-" + rounds.length,
+      prompt,
+      buttons,
+      correctIndex,
+      double
+    };
+    rounds.push(round);
+    roundBuilderStatus.textContent = "Round added.";
+    renderRoundList();
+
+    // send updated rounds to players (optional)
+    if (isHost) {
+      Object.values(hostConnections).forEach(c => {
+        if (c.open) {
+          c.send({ type: "roundsUpdate", rounds });
+        }
+      });
+    }
+  });
+
+  btnClearRounds.addEventListener("click", () => {
+    rounds = [];
+    currentRoundIndex = -1;
+    roundActive = false;
+    roundAnswers = {};
+    correctOrder = [];
+    renderRoundList();
+    setHostGameStatus("All rounds cleared.");
+    setQuestion("No rounds. Add some on the right.");
+    clearButtons();
+  });
+
+  btnPrevRound.addEventListener("click", () => {
+    if (!rounds.length) return;
+    let idx = currentRoundIndex <= 0 ? 0 : currentRoundIndex - 1;
+    hostStartRound(idx);
+  });
+
+  btnNextRound.addEventListener("click", () => {
+    if (!rounds.length) {
+      setHostGameStatus("No rounds. Add some first.");
+      return;
+    }
+    let idx = currentRoundIndex + 1;
+    if (idx >= rounds.length) idx = 0;
+    hostStartRound(idx);
+  });
+
+  btnRestartGame.addEventListener("click", () => {
+    hostResetScores();
+  });
+
+  // --- Init ---
+  setQuestion("Choose host or join, then connect.");
+  setGameStatus("Waiting for setup…");
+  renderRoundList();
+  renderPlayerList();
+  renderLeaderboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+
+
+  /* Container for image and text */
+body {
+    position: relative; /* Needed for absolute positioning of text */
+    display: inline-block;
+    max-width: 100%;
+      position: absolute;
+    top: 40%; /* Center vertically */
+    left: 50%; /* Center horizontally */
+    transform: translate(-50%, -50%);
+  }
+
+
+#button {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 0cap;
+    background-color: transparent; 
+  }
+
+#guesser {
+    position: absolute;
+    top: 60%; /* Center vertically */
+    left: 50%; /* Center horizontally */
+    transform: translate(-50%, -50%); /* Adjust for perfect centering */
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+    padding: 10px 20px;
+    border-radius: 5px;
+  }
+
+#button :active {
+  top: 45%; /* Center vertically */
+  left: 50%
+}

@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Take King Chess - Online Multiplayer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+        h1 { margin-bottom: 5px; }
+        p { margin-top: 0; color: #bdc3c7; text-align: center; max-width: 500px;}
+        
+        #lobby-panel {
+            background-color: #2c3e50;
+            border: 2px dashed #3498db;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            width: 520px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .lobby-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 8px 0;
+            align-items: center;
+        }
+        input {
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            width: 200px;
+            font-size: 0.9rem;
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover { background-color: #2980b9; }
+        
+        #random-match-btn {
+            background-color: #e67e22;
+            width: 100%;
+            margin-top: 5px;
+        }
+        #random-match-btn:hover { background-color: #d35400; }
+        #random-match-btn:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+
+        #my-id-display {
+            font-weight: bold;
+            color: #2ecc71;
+            background: #34495e;
+            padding: 3px 8px;
+            border-radius: 4px;
+            user-select: text; 
+        }
+
+        #level-container {
+            background-color: #34495e;
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-align: center;
+            width: 520px;
+            box-sizing: border-box;
+        }
+        #level-slider {
+            width: 100%;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        #level-slider:disabled { opacity: 0.4; cursor: not-allowed; }
+        #level-desc {
+            font-size: 0.95rem;
+            color: #f1c40f;
+            min-height: 40px;
+            font-weight: bold;
+        }
+
+        #status {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #2ecc71;
+            background-color: #34495e;
+            padding: 6px 20px;
+            border-radius: 4px;
+        }
+        
+        #board-wrapper {
+            position: relative;
+        }
+
+        #chessboard {
+            display: grid;
+            border: 5px solid #34495e;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+            transition: transform 0.5s ease;
+        }
+        
+        .flipped-board {
+            transform: rotate(180deg);
+        }
+
+        #arrow-svg {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 38px;
+            cursor: pointer;
+            position: relative;
+        }
+        .light { background-color: #e0e4e8; }
+        .dark { background-color: #88929a; }
+        
+        .slippery::after {
+            content: '🧊';
+            font-size: 12px;
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            opacity: 0.7;
+            z-index: 1;
+        }
+        .slipped-piece {
+            opacity: 0.4 !important;
+            filter: grayscale(100%) contrast(150%) drop-shadow(0px 0px 8px #3498db) !important;
+        }
+
+        .piece {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            cursor: grab;
+            position: relative;
+            transform: translate(0, 0);
+        }
+        .piece:active { cursor: grabbing; }
+        
+        .flipped-board .piece {
+            transform: rotate(180deg);
+        }
+        
+        .piece-w { color: #ffffff; filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.75)); }
+        .piece-b { color: #111111; filter: drop-shadow(0px 2px 2px rgba(255,255,255,0.2)); }
+        
+        .selected { background-color: #2ecc71 !important; }
+        .highlighted::before {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background-color: rgba(46, 204, 113, 0.6);
+            border-radius: 50%;
+            position: absolute;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        #replay-panel {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            background-color: #34495e;
+            border: 2px dashed #f1c40f;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            width: 520px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+        }
+        .replay-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .replay-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            background-color: #2c3e50;
+            color: #f1c40f;
+            border: 1px solid #f1c40f;
+        }
+        .replay-btn:hover:not(:disabled) {
+            background-color: #f1c40f;
+            color: #2c3e50;
+        }
+        .replay-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #7f8c8d;
+            color: #7f8c8d;
+        }
+        #replay-counter {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #ecf0f1;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <h1>Take King Chess (Online Multiplayer)</h1>
+    <p>Move into danger freely. Match a stranger or input your friend's room ID. Right-click and drag to create strategic layout arrows.</p>
+    
+    <div id="lobby-panel">
+        <div class="lobby-row">
+            <span>Your Game Room ID: </span>
+            <span id="my-id-display">Connecting to network...</span>
+        </div>
+        <div class="lobby-row">
+            <input type="text" id="peer-id-input" placeholder="Paste Opponent's Room ID here...">
+            <button id="connect-btn">Connect & Play</button>
+        </div>
+        <div class="lobby-row">
+            <button id="random-match-btn" disabled>Match with Stranger (Level 1)</button>
+        </div>
+        <div id="network-log" style="color: #f1c40f; font-size: 0.9rem; margin-top:5px;">Initializing peer node network...</div>
+    </div>
+
+    <div id="level-container">
+        <label for="level-slider" style="font-weight: bold; font-size: 1.1rem;">Game Rule Level: <span id="level-val">1</span></label>
+        <input type="range" id="level-slider" min="1" max="10" value="1">
+        <div id="level-desc">Level 1: Normal Chess. Standard movement rules apply.</div>
+    </div>
+
+    <div id="status">Awaiting Network Connection...</div>
+    
+    <div id="board-wrapper">
+        <div id="chessboard"></div>
+        <svg id="arrow-svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="rgba(230, 126, 34, 0.85)" />
+                </marker>
+            </defs>
+        </svg>
+    </div>
+
+    <div id="replay-panel">
+        <div id="replay-counter">Reviewing Move: 0 / 0</div>
+        <div class="replay-buttons">
+            <button class="replay-btn" id="btn-first">Local Replay First</button>
+            <button class="replay-btn" id="btn-prev">◀ Back</button>
+            <button class="replay-btn" id="btn-next">Next ▶</button>
+            <button class="replay-btn" id="btn-last">Last ⏭</button>
+        </div>
+    </div>
+
+    <script>
+        const boardElem = document.getElementById('chessboard');
+        const statusElem = document.getElementById('status');
+        const levelSlider = document.getElementById('level-slider');
+        const levelValDisplay = document.getElementById('level-val');
+        const levelDescDisplay = document.getElementById('level-desc');
+        
+        const myIdDisplay = document.getElementById('my-id-display');
+        const peerIdInput = document.getElementById('peer-id-input');
+        const connectBtn = document.getElementById('connect-btn');
+        const randomMatchBtn = document.getElementById('random-match-btn');
+        const networkLog = document.getElementById('network-log');
+        const arrowSvg = document.getElementById('arrow-svg');
+
+        const replayPanel = document.getElementById('replay-panel');
+        const replayCounter = document.getElementById('replay-counter');
+        const btnFirst = document.getElementById('btn-first');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const btnLast = document.getElementById('btn-last');
+
+        const symbols = {
+            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'G': '🛡️',
+            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'g': '🛡️'
+        };
+
+        let currentLevel = 1;
+        let myPlayerColor = null; 
+        let dataConnection = null; 
+        let myPeerId = null;
+        let pahoClient = null;
+        let isSearching = false;
+        let heartbeatInterval = null;
+        let currentMqttTopic = "";
+        let matchedPeerIds = new Set(); // Track already-matched peers
+
+        const levelDescriptions = {
+            1: "Level 1: Normal Chess. Standard movement rules apply.",
+            2: "Level 2: Goblin Pawns! Pawns move 1 or 2 squares forward or diagonally, jumping completely over obstacles.",
+            3: "Level 3: Horse Queens. The traditional Queen transforms completely into an agile Knight-Queen compound construct.",
+            4: "Level 4: Phantom Rooks. Heavy Siege Castles gain the dimensional ability to jump obstacles natively like Knights.",
+            5: "Level 5: Kinetic Bishops. Clergy track vectors that rebound off the boundaries of the board matrix to bank paths.",
+            6: "Level 6: Perilous Ice. Random tiles look slippery. Landing freezes pieces: they cannot capture and require 1 turn to stabilize.",
+            7: "Level 7: Sovereign Swap. The Monarch rules space, enjoying capability to swap coordinate matrices safely with any ally.",
+            8: "Level 8: Blitz Chargers. Horses harness double energy output, allowing them to jump twice as far as traditional Knights.",
+            9: "Level 9: The Grand Arena. Grid size safely expands to 10x10. Introduces the Guardian (G), who drops out of nowhere directly in front of your own pieces.",
+            10: "Level 10: Absolute Armageddon! All structural rules, variant configurations, and size scales mesh into one singular sandbox."
+        };
+
+        let board = [];
+        let boardSize = 8;
+        let itemSlippedState = [];
+        let iceLayout = [];
+
+        let turn = 'w'; 
+        let selected = null; 
+        let gameOver = false;
+        let isAnimating = false; 
+
+        let activeArrows = [];
+        let drawingStartCell = null;
+
+        let gameHistory = [];
+        let replayIndex = 0;
+        let isReplaying = false;
+
+        function saveHistoryState() {
+            gameHistory.push({
+                boardState: board.map(row => [...row]),
+                slippedState: itemSlippedState.map(row => [...row]),
+                activeTurn: turn
+            });
+        }
+
+        const peer = new Peer();
+
+        peer.on('open', (id) => {
+            myPeerId = id;
+            myIdDisplay.textContent = id;
+            randomMatchBtn.disabled = false;
+            networkLog.textContent = "Ready. Share your Room ID, or click 'Match with Stranger'!";
+        });
+
+        peer.on('connection', (incomingConn) => {
+            if (dataConnection) {
+                incomingConn.close();
+                return; 
+            }
+            dataConnection = incomingConn;
+            myPlayerColor = 'w'; 
+            cleanupMatchmaking();
+            disableLevelSelection();
+            hookNetworkEvents();
+        });
+
+        connectBtn.addEventListener('click', () => {
+            const targetId = peerIdInput.value.trim();
+            if (!targetId || targetId === myPeerId) return;
+            
+            networkLog.textContent = "Connecting to peer host matrix...";
+            myPlayerColor = 'b'; 
+            cleanupMatchmaking();
+            disableLevelSelection();
+            
+            dataConnection = peer.connect(targetId);
+            hookNetworkEvents();
+        });
+
+        randomMatchBtn.addEventListener('click', () => {
+            if (isSearching) {
+                cleanupMatchmaking();
+                networkLog.textContent = "Matchmaking canceled.";
+                return;
+            }
+
+            isSearching = true;
+            matchedPeerIds.clear();
+            randomMatchBtn.textContent = "Cancel Search...";
+            connectBtn.disabled = true;
+            peerIdInput.disabled = true;
+            disableLevelSelection();
+            networkLog.textContent = `Searching for a stranger playing Level ${currentLevel}...`;
+
+            const randClientStr = "client_" + Math.random().toString(36).substring(2, 10);
+            pahoClient = new Paho.Client("broker.hivemq.com", 443, randClientStr);
+
+            pahoClient.onMessageArrived = (message) => {
+                if (!isSearching || dataConnection) return;
+                try {
+                    const peerOffer = JSON.parse(message.payloadString);
+                    if (peerOffer.id === myPeerId) return;
+                    if (matchedPeerIds.has(peerOffer.id)) return;
+                    if (Date.now() - peerOffer.timestamp > 30000) return;
+
+                    networkLog.textContent = "Stranger encountered! Binding sockets...";
+                    matchedPeerIds.add(peerOffer.id);
+                    
+                    // FIX: Only the peer with the HIGHER ID initiates connection
+                    // This prevents both peers from trying to connect
+                    const shouldInitiateConnection = myPeerId > peerOffer.id;
+                    
+                    if (shouldInitiateConnection) {
+                        setTimeout(() => {
+                            if (!isSearching || dataConnection) return;
+                            myPlayerColor = 'b'; 
+                            cleanupMatchmaking();
+                            dataConnection = peer.connect(peerOffer.id);
+                            hookNetworkEvents();
+                        }, 100); 
+                    }
+                    // If myPeerId < peerOffer.id, we wait for them to connect to us
+                } catch (err) {
+                    console.error("Matchmaking parse error:", err);
+                }
+            };
+
+            pahoClient.connect({
+                onSuccess: () => {
+                    if (!isSearching) return;
+                    currentMqttTopic = `take_king_chess_match_lvl_${currentLevel}`;
+                    pahoClient.subscribe(currentMqttTopic);
+                    broadcastPresence();
+
+                    heartbeatInterval = setInterval(() => {
+                        broadcastPresence();
+                    }, 2000);
+                },
+                onFailure: (err) => {
+                    console.error("MQTT Connection failed:", err);
+                    networkLog.textContent = "Lobby server connection failed. Retrying...";
+                    cleanupMatchmaking();
+                },
+                useSSL: true
+            });
+        });
+
+        function broadcastPresence() {
+            if (pahoClient && pahoClient.isConnected()) {
+                const lobbyPing = JSON.stringify({ id: myPeerId, timestamp: Date.now() });
+                const message = new Paho.Message(lobbyPing);
+                message.destinationName = currentMqttTopic;
+                pahoClient.send(message);
+            }
+        }
+
+        function disableLevelSelection() {
+            levelSlider.disabled = true;
+        }
+
+        function cleanupMatchmaking() {
+            isSearching = false;
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+            randomMatchBtn.textContent = `Match with Stranger (Level ${currentLevel})`;
+            randomMatchBtn.disabled = (myPlayerColor !== null);
+            connectBtn.disabled = (myPlayerColor !== null);
+            peerIdInput.disabled = (myPlayerColor !== null);
+            if (pahoClient) {
+                try {
+                    if (pahoClient.isConnected()) pahoClient.disconnect();
+                } catch(e) {}
+                pahoClient = null;
+            }
+        }
+
+        function hookNetworkEvents() {
+            if (!dataConnection) return;
+
+            dataConnection.on('open', () => {
+                networkLog.textContent = `Connected! Playing Level ${currentLevel}.`;
+                networkLog.style.color = "#2ecc71";
+                cleanupMatchmaking();
+                disableLevelSelection();
+                
+                if (myPlayerColor === 'b') {
+                    boardElem.classList.add('flipped-board');
+                } else {
+                    boardElem.classList.remove('flipped-board');
+                }
+
+                if (myPlayerColor === 'w') {
+                    sendDataPayload({ type: 'RULE_SYNC', level: currentLevel });
+                }
+                initializeGame();
+            });
+
+            dataConnection.on('data', (payload) => {
+                if (payload.type === 'RULE_SYNC') {
+                    currentLevel = payload.level;
+                    levelSlider.value = currentLevel;
+                    levelValDisplay.textContent = currentLevel;
+                    levelDescDisplay.textContent = levelDescriptions[currentLevel];
+                    disableLevelSelection();
+                    initializeGame();
+                }
+                else if (payload.type === 'MOVE_EXECUTE') {
+                    processSlipTurnRecovery(turn);
+                    animateAndExecuteMove(payload.move);
+                }
+            });
+
+            dataConnection.on('error', (error) => {
+                console.error("Connection error:", error);
+                if (isSearching && !dataConnection?.open) {
+                    networkLog.textContent = "Connection failed. Searching again...";
+                }
+            });
+
+            dataConnection.on('close', () => {
+                networkLog.textContent = "Connection lost. Opponent left.";
+                networkLog.style.color = "#e74c3c";
+                gameOver = true;
+            });
+        }
+
+        function sendDataPayload(obj) {
+            if (dataConnection && dataConnection.open) {
+                dataConnection.send(obj);
+            }
+        }
+
+        function initializeGame() {
+            boardSize = (currentLevel === 9 || currentLevel === 10) ? 10 : 8;
+            
+            boardElem.style.gridTemplateColumns = `repeat(${boardSize}, 60px)`;
+            boardElem.style.gridTemplateRows = `repeat(${boardSize}, 60px)`;
+            const pixels = boardSize * 60;
+            arrowSvg.setAttribute('width', pixels + 10);
+            arrowSvg.setAttribute('height', pixels + 10);
+            arrowSvg.style.width = (pixels + 10) + 'px';
+            arrowSvg.style.height = (pixels + 10) + 'px';
+
+            if (boardSize === 10) {
+                board = [
+                    ['r','n','b','q','k','g','g','b','n','r'],
+                    ['p','p','p','p','p','p','p','p','p','p'],
+                    ['','','','','','','','','',''],
+                    ['','','','','','','','','',''],
+                    ['','','','','','','','','',''],
+                    ['','','','','','','','','',''],
+                    ['','','','','','','','','',''],
+                    ['','','','','','','','','',''],
+                    ['P','P','P','P','P','P','P','P','P','P'],
+                    ['R','N','B','Q','K','G','G','B','N','R']
+                ];
+            } else {
+                board = [
+                    ['r','n','b','q','k','b','n','r'],
+                    ['p','p','p','p','p','p','p','p'],
+                    ['','','','','','','',''],
+                    ['','','','','','','',''],
+                    ['','','','','','','',''],
+                    ['','','','','','','',''],
+                    ['P','P','P','P','P','P','P','P'],
+                    ['R','N','B','Q','K','B','N','R']
+                ];
+            }
+
+            turn = 'w';
+            selected = null;
+            gameOver = false;
+            isReplaying = false;
+            isAnimating = false;
+            activeArrows = [];
+            redrawArrows();
+            gameHistory = [];
+            replayPanel.style.display = 'none';
+            
+            itemSlippedState = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+            iceLayout = Array(boardSize).fill(null).map(() => Array(boardSize).fill(false));
+            
+            if (currentLevel === 6 || currentLevel === 10) {
+                let spaces = boardSize === 10 ? [[3,3], [3,6], [4,4], [4,5], [5,4], [5,5], [6,3], [6,6]] : [[2,2], [2,5], [3,3], [3,4], [4,3], [4,4], [5,2], [5,5]];
+                spaces.forEach(([r,c]) => { iceLayout[r][c] = true; });
+            }
+            
+            saveHistoryState();
+            updateStatusMessage();
+            drawBoard();
+        }
+
+        function updateStatusMessage() {
+            if (isReplaying) {
+                statusElem.textContent = "Reviewing Match Replay";
+                statusElem.style.color = "#f1c40f";
+                return;
+            }
+            if (gameOver) return;
+            if (!myPlayerColor) {
+                statusElem.textContent = "Connect to start game";
+                return;
+            }
+            let turnTxt = (turn === 'w') ? "White's Turn" : "Black's Turn";
+            let identityTxt = (turn === myPlayerColor) ? " (Your Move!)" : " (Opponent's Move...)";
+            statusElem.textContent = turnTxt + identityTxt;
+            statusElem.style.color = "#2ecc71";
+        }
+
+        function drawBoard() {
+            boardElem.innerHTML = '';
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell', (r + c) % 2 === 0 ? 'light' : 'dark');
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    if (iceLayout[r][c]) cell.classList.add('slippery');
+
+                    cell.addEventListener('dragover', onDragOver);
+                    cell.addEventListener('drop', onDrop);
+                    cell.addEventListener('mousedown', onSquareMouseDown);
+                    cell.addEventListener('mouseup', onSquareMouseUp);
+
+                    const pieceType = board[r][c];
+                    if (pieceType) {
+                        const pieceDiv = document.createElement('div');
+                        pieceDiv.classList.add('piece');
+                        pieceDiv.textContent = symbols[pieceType];
+                        
+                        const isWhite = pieceType === pieceType.toUpperCase();
+                        pieceDiv.classList.add(isWhite ? 'piece-w' : 'piece-b');
+                        
+                        if (itemSlippedState[r][c] !== null) pieceDiv.classList.add('slipped-piece');
+                        
+                        const basicTurnCheck = (turn === 'w' && isWhite) || (turn === 'b' && !isWhite);
+                        const matchIdentityCheck = myPlayerColor ? ((myPlayerColor === 'w' && isWhite) || (myPlayerColor === 'b' && !isWhite)) : false;
+
+                        if (!gameOver && !isReplaying && !isAnimating && basicTurnCheck && matchIdentityCheck && itemSlippedState[r][c] === null) {
+                            pieceDiv.setAttribute('draggable', 'true');
+                            pieceDiv.addEventListener('dragstart', (e) => onDragStart(e, r, c));
+                        }
+                        
+                        cell.appendChild(pieceDiv);
+                    }
+                    boardElem.appendChild(cell);
+                }
+            }
+        }
+
+        levelSlider.addEventListener('input', (e) => {
+            if (myPlayerColor || isSearching) {
+                levelSlider.value = currentLevel; 
+                return;
+            }
+            currentLevel = parseInt(e.target.value);
+            levelValDisplay.textContent = currentLevel;
+            levelDescDisplay.textContent = levelDescriptions[currentLevel];
+            randomMatchBtn.textContent = `Match with Stranger (Level ${currentLevel})`;
+            initializeGame();
+        });
+
+        function onDragStart(e, r, c) {
+            if (gameOver || isReplaying || isAnimating || !myPlayerColor || turn !== myPlayerColor) {
+                e.preventDefault();
+                return;
+            }
+            selectPiece(r, c);
+        }
+
+        function onDragOver(e) { e.preventDefault(); }
+
+        function onDrop(e) {
+            e.preventDefault();
+            if (isReplaying || isAnimating) return;
+            const cell = e.currentTarget;
+            attemptMove(parseInt(cell.dataset.row), parseInt(cell.dataset.col));
+        }
+
+        function onSquareMouseDown(e) {
+            const cell = e.currentTarget;
+            const r = parseInt(cell.dataset.row);
+            const c = parseInt(cell.dataset.col);
+
+            if (e.button === 2) { 
+                drawingStartCell = { r, c };
+            } else if (e.button === 0) { 
+                if (activeArrows.length > 0) {
+                    activeArrows = [];
+                    redrawArrows();
+                }
+
+                if (gameOver || isReplaying || isAnimating || !myPlayerColor || turn !== myPlayerColor) return;
+
+                if (selected) {
+                    if (attemptMove(r, c)) return;
+                }
+                
+                const piece = board[r][c];
+                const isWhitePiece = piece && piece === piece.toUpperCase();
+                const matchedColorOwnership = (myPlayerColor === 'w' && isWhitePiece) || (myPlayerColor === 'b' && !isWhitePiece);
+                
+                if (piece && matchedColorOwnership && ((turn === 'w' && isWhitePiece) || (turn === 'b' && !isWhitePiece)) && itemSlippedState[r][c] === null) {
+                    selectPiece(r, c);
+                } else {
+                    selected = null;
+                    clearHighlights();
+                }
+            }
+        }
+
+        function onSquareMouseUp(e) {
+            if (e.button === 2 && drawingStartCell) { 
+                const cell = e.currentTarget;
+                const r = parseInt(cell.dataset.row);
+                const c = parseInt(cell.dataset.col);
+
+                if (drawingStartCell.r !== r || drawingStartCell.c !== c) {
+                    const arrowEntry = { fromR: drawingStartCell.r, fromC: drawingStartCell.c, toR: r, toC: c };
+                    const duplicateIndex = activeArrows.findIndex(a => a.fromR === arrowEntry.fromR && a.fromC === arrowEntry.fromC && a.toR === arrowEntry.toR && a.toC === arrowEntry.toC);
+                    if (duplicateIndex !== -1) {
+                        activeArrows.splice(duplicateIndex, 1);
+                    } else {
+                        activeArrows.push(arrowEntry);
+                    }
+                    redrawArrows();
+                }
+                drawingStartCell = null;
+            }
+        }
+
+        function redrawArrows() {
+            const elements = arrowSvg.querySelectorAll('line');
+            elements.forEach(el => el.remove());
+
+            const maxPx = boardSize * 60;
+            activeArrows.forEach(arrow => {
+                let x1 = arrow.fromC * 60 + 30;
+                let y1 = arrow.fromR * 60 + 30;
+                let x2 = arrow.toC * 60 + 30;
+                let y2 = arrow.toR * 60 + 30;
+
+                if (myPlayerColor === 'b') {
+                    x1 = maxPx - x1; y1 = maxPx - y1;
+                    x2 = maxPx - x2; y2 = maxPx - y2;
+                }
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+                line.setAttribute('stroke', 'rgba(230, 126, 34, 0.85)');
+                line.setAttribute('stroke-width', '5');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+                arrowSvg.appendChild(line);
+            });
+        }
+
+        function selectPiece(r, c) {
+            clearHighlights();
+            selected = { r, c };
+            document.querySelector(`[data-row="${r}"][data-col="${c}"]`)?.classList.add('selected');
+
+            getLegalMoves(r, c, board).forEach(m => {
+                document.querySelector(`[data-row="${m.toR}"][data-col="${m.toC}"]`)?.classList.add('highlighted');
+            });
+        }
+
+        function attemptMove(r, c) {
+            if (!selected) return false;
+            const moves = getLegalMoves(selected.r, selected.c, board);
+            const validMove = moves.find(m => m.toR === r && m.toC === c);
+
+            if (validMove) {
+                sendDataPayload({ type: 'MOVE_EXECUTE', move: validMove });
+                processSlipTurnRecovery(turn);
+                animateAndExecuteMove(validMove);
+                return true;
+            }
+            return false;
+        }
+
+        function animateAndExecuteMove(move) {
+            isAnimating = true;
+            selected = null;
+            clearHighlights();
+            activeArrows = [];
+            redrawArrows();
+
+            const fromCell = document.querySelector(`[data-row="${move.fromR}"][data-col="${move.fromC}"]`);
+            const toCell = document.querySelector(`[data-row="${move.toR}"][data-col="${move.toC}"]`);
+            const movingPieceElem = fromCell ? fromCell.querySelector('.piece') : null;
+
+            if (movingPieceElem && fromCell && toCell) {
+                const fromRect = fromCell.getBoundingClientRect();
+                const toRect = toCell.getBoundingClientRect();
+                
+                let deltaX = toRect.left - fromRect.left;
+                let deltaY = toRect.top - fromRect.top;
+
+                if (myPlayerColor === 'b') {
+                    deltaX = -deltaX; deltaY = -deltaY;
+                }
+
+                movingPieceElem.style.transition = "transform 0.28s cubic-bezier(0.25, 1, 0.5, 1)";
+                
+                let targetPieceElem = toCell.querySelector('.piece');
+                if (move.type === 'swap' && targetPieceElem) {
+                    targetPieceElem.style.transition = "transform 0.28s cubic-bezier(0.25, 1, 0.5, 1)";
+                    if (myPlayerColor === 'b') {
+                        targetPieceElem.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(180deg)`;
+                    } else {
+                        targetPieceElem.style.transform = `translate(${-deltaX}px, ${-deltaY}px)`;
+                    }
+                } else if (targetPieceElem) {
+                    targetPieceElem.style.transition = "opacity 0.2s ease";
+                    targetPieceElem.style.opacity = "0";
+                }
+
+                if (myPlayerColor === 'b') {
+                    movingPieceElem.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(180deg)`;
+                } else {
+                    movingPieceElem.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                }
+
+                movingPieceElem.addEventListener('transitionend', function handler() {
+                    movingPieceElem.removeEventListener('transitionend', handler);
+                    finalizeMoveState(move);
+                });
+            } else {
+                finalizeMoveState(move);
+            }
+        }
+
+        function finalizeMoveState(move) {
+            executeMove(board, move);
+            
+            const pieceAtDestination = board[move.toR][move.toC];
+            if (pieceAtDestination === 'P' && move.toR === 0) {
+                board[move.toR][move.toC] = 'Q';
+            } else if (pieceAtDestination === 'p' && move.toR === (boardSize - 1)) {
+                board[move.toR][move.toC] = 'q';
+            }
+
+            saveHistoryState();
+            isAnimating = false;
+
+            if (!checkGameEnd()) {
+                turn = (turn === 'w') ? 'b' : 'w';
+                updateStatusMessage();
+            } else {
+                activateReplayEngine();
+            }
+            drawBoard();
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected', 'highlighted'));
+        }
+
+        function getLegalMoves(r, c, currentBoard) {
+            const piece = currentBoard[r][c];
+            if (!piece) return [];
+            
+            const moves = [];
+            const isWhite = piece === piece.toUpperCase();
+            const type = piece.toLowerCase();
+            if (itemSlippedState[r][c] !== null) return []; 
+
+            const rookDirs = [[1,0], [-1,0], [0,1], [0,-1]];
+            const bishopDirs = [[1,1], [1,-1], [-1,1], [-1,-1]];
+            
+            let knightOffsets = [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]];
+
+            const lvl2 = (currentLevel === 2 || currentLevel === 10);
+            const lvl3 = (currentLevel === 3 || currentLevel === 10);
+            const lvl4 = (currentLevel === 4 || currentLevel === 10);
+            const lvl5 = (currentLevel === 5 || currentLevel === 10);
+            const lvl7 = (currentLevel === 7 || currentLevel === 10);
+            const lvl8 = (currentLevel === 8 || currentLevel === 10);
+
+            if (lvl8) {
+                knightOffsets = knightOffsets.concat([[4,2],[4,-2],[-4,2],[-4,-2],[2,4],[2,-4],[-2,4],[-2,-4]]);
+            }
+
+            switch (type) {
+                case 'p':
+                    if (lvl2) {
+                        const forward = isWhite ? -1 : 1;
+                        const goblinOffsets = [[forward * 1, 0], [forward * 2, 0], [forward * 1, 1], [forward * 1, -1], [forward * 2, 2], [forward * 2, -2]];
+                        goblinOffsets.forEach(([dr, dc]) => {
+                            const targetR = r + dr, targetC = c + dc;
+                            if (isOnBoard(targetR, targetC)) {
+                                const target = currentBoard[targetR][targetC];
+                                if (!target || isEnemy(piece, target)) {
+                                    moves.push({ fromR: r, fromC: c, toR: targetR, toC: targetC, type: 'normal' });
+                                }
+                            }
+                        });
+                    } else {
+                        const dir = isWhite ? -1 : 1;
+                        if (isOnBoard(r + dir, c) && !currentBoard[r + dir][c]) {
+                            moves.push({ fromR: r, fromC: c, toR: r + dir, toC: c, type: 'normal' });
+                            if (r === (isWhite ? (boardSize - 2) : 1) && !currentBoard[r + dir * 2][c] && !currentBoard[r + dir][c]) {
+                                moves.push({ fromR: r, fromC: c, toR: r + dir * 2, toC: c, type: 'normal' });
+                            }
+                        }
+                        [-1, 1].forEach(dc => {
+                            if (isOnBoard(r + dir, c + dc)) {
+                                const target = currentBoard[r + dir][c + dc];
+                                if (target && isEnemy(piece, target)) {
+                                    moves.push({ fromR: r, fromC: c, toR: r + dir, toC: c + dc, type: 'normal' });
+                                }
+                            }
+                        });
+                    }
+                    break;
+
+                case 'r':
+                    processSlidingMoves(r, c, rookDirs, piece, currentBoard, moves);
+                    if (lvl4) {
+                        knightOffsets.forEach(([dr, dc]) => {
+                            if (isOnBoard(r + dr, c + dc)) {
+                                const target = currentBoard[r + dr][c + dc];
+                                if (!target || isEnemy(piece, target)) {
+                                    moves.push({ fromR: r, fromC: c, toR: r + dr, toC: c + dc, type: 'normal' });
+                                }
+                            }
+                        });
+                    }
+                    break;
+
+                case 'b':
+                    if (lvl5) processBouncingBishops(r, c, bishopDirs, piece, currentBoard, moves);
+                    else processSlidingMoves(r, c, bishopDirs, piece, currentBoard, moves);
+                    break;
+
+                case 'q':
+                    processSlidingMoves(r, c, [...rookDirs, ...bishopDirs], piece, currentBoard, moves);
+                    if (lvl3) {
+                        knightOffsets.forEach(([dr, dc]) => {
+                            if (isOnBoard(r + dr, c + dc)) {
+                                const target = currentBoard[r + dr][c + dc];
+                                if (!target || isEnemy(piece, target)) {
+                                    moves.push({ fromR: r, fromC: c, toR: r + dr, toC: c + dc, type: 'normal' });
+                                }
+                            }
+                        });
+                    }
+                    break;
+
+                case 'n':
+                    knightOffsets.forEach(([dr, dc]) => {
+                        if (isOnBoard(r + dr, c + dc)) {
+                            const target = currentBoard[r + dr][c + dc];
+                            if (!target || isEnemy(piece, target)) {
+                                moves.push({ fromR: r, fromC: c, toR: r + dr, toC: c + dc, type: 'normal' });
+                            }
+                        }
+                    });
+                    break;
+
+                case 'k':
+                    [...rookDirs, ...bishopDirs].forEach(([dr, dc]) => {
+                        if (isOnBoard(r + dr, c + dc)) {
+                            const target = currentBoard[r + dr][c + dc];
+                            if (!target || isEnemy(piece, target)) {
+                                moves.push({ fromR: r, fromC: c, toR: r + dr, toC: c + dc, type: 'normal' });
+                            }
+                        }
+                    });
+                    if (lvl7) {
+                        for (let tr = 0; tr < boardSize; tr++) {
+                            for (let tc = 0; tc < boardSize; tc++) {
+                                const targetPiece = currentBoard[tr][tc];
+                                if (targetPiece && !isEnemy(piece, targetPiece) && targetPiece.toLowerCase() !== 'k') {
+                                    moves.push({ fromR: r, fromC: c, toR: tr, toC: tc, type: 'swap' });
+                                }
+                            }
+                        }
+                    }
+                    break;
+
+                case 'g':
+                    // Guardian Logic: Can ONLY move directly in front of friendly pieces, not capture enemies
+                    for (let tr = 0; tr < boardSize; tr++) {
+                        for (let tc = 0; tc < boardSize; tc++) {
+                            const targetPiece = currentBoard[tr][tc];
+                            if (!targetPiece) continue;
+                            if (isEnemy(piece, targetPiece)) continue;
+                            const dx = tc - c, dy = tr - r;
+                            if (dx === 0 && dy !== 0) {
+                                const guardianStepDir = dy > 0 ? 1 : -1;
+                                if (isOnBoard(r + guardianStepDir, c) && !currentBoard[r + guardianStepDir][c]) {
+                                    moves.push({ fromR: r, fromC: c, toR: r + guardianStepDir, toC: c, type: 'normal' });
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+            return moves;
+        }
+
+        function processSlidingMoves(r, c, dirs, piece, currentBoard, moves) {
+            dirs.forEach(([dr, dc]) => {
+                for (let i = 1; i < boardSize; i++) {
+                    const newR = r + dr * i, newC = c + dc * i;
+                    if (!isOnBoard(newR, newC)) break;
+                    const target = currentBoard[newR][newC];
+                    if (target) {
+                        if (isEnemy(piece, target)) moves.push({ fromR: r, fromC: c, toR: newR, toC: newC, type: 'normal' });
+                        break;
+                    }
+                    moves.push({ fromR: r, fromC: c, toR: newR, toC: newC, type: 'normal' });
+                }
+            });
+        }
+
+        function processBouncingBishops(r, c, dirs, piece, currentBoard, moves) {
+            dirs.forEach(([dr, dc]) => {
+                let curR = r + dr, curC = c + dc;
+                while (isOnBoard(curR, curC)) {
+                    const target = currentBoard[curR][curC];
+                    if (target) {
+                        if (isEnemy(piece, target)) moves.push({ fromR: r, fromC: c, toR: curR, toC: curC, type: 'normal' });
+                        break;
+                    }
+                    moves.push({ fromR: r, fromC: c, toR: curR, toC: curC, type: 'normal' });
+                    curR += dr; curC += dc;
+                    if (!isOnBoard(curR, curC)) {
+                        curR -= dr * 2; curC -= dc * 2;
+                        dr = -dr; dc = -dc;
+                        while (isOnBoard(curR, curC)) {
+                            const bounceTarget = currentBoard[curR][curC];
+                            if (bounceTarget) {
+                                if (isEnemy(piece, bounceTarget)) moves.push({ fromR: r, fromC: c, toR: curR, toC: curC, type: 'normal' });
+                                break;
+                            }
+                            moves.push({ fromR: r, fromC: c, toR: curR, toC: curC, type: 'normal' });
+                            curR += dr; curC += dc;
+                            if (!isOnBoard(curR, curC)) break;
+                        }
+                        break;
+                    }
+                }
+            });
+        }
+
+        function isOnBoard(r, c) {
+            return r >= 0 && r < boardSize && c >= 0 && c < boardSize;
+        }
+
+        function isEnemy(piece1, piece2) {
+            const isWhite1 = piece1 === piece1.toUpperCase();
+            const isWhite2 = piece2 === piece2.toUpperCase();
+            return isWhite1 !== isWhite2;
+        }
+
+        function executeMove(currentBoard, move) {
+            if (move.type === 'swap') {
+                [currentBoard[move.fromR][move.fromC], currentBoard[move.toR][move.toC]] = 
+                [currentBoard[move.toR][move.toC], currentBoard[move.fromR][move.fromC]];
+            } else {
+                currentBoard[move.toR][move.toC] = currentBoard[move.fromR][move.fromC];
+                currentBoard[move.fromR][move.fromC] = '';
+            }
+            itemSlippedState[move.fromR][move.fromC] = null;
+            if (iceLayout[move.toR][move.toC]) {
+                itemSlippedState[move.toR][move.toC] = { onIce: true };
+            }
+        }
+
+        function processSlipTurnRecovery(playerTurn) {
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const piece = board[r][c];
+                    if (!piece) continue;
+                    const isWhite = piece === piece.toUpperCase();
+                    if ((playerTurn === 'w' && !isWhite) || (playerTurn === 'b' && isWhite)) continue;
+                    if (itemSlippedState[r][c] && itemSlippedState[r][c].onIce) {
+                        itemSlippedState[r][c] = null;
+                    }
+                }
+            }
+        }
+
+        function checkGameEnd() {
+            const kingToFind = turn === 'w' ? 'k' : 'K';
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    if (board[r][c] === kingToFind) return false;
+                }
+            }
+            statusElem.textContent = (turn === 'w' ? 'White' : 'Black') + " King captured. " + (turn === 'w' ? 'Black' : 'White') + " wins!";
+            statusElem.style.color = "#f39c12";
+            return true;
+        }
+
+        function activateReplayEngine() {
+            replayPanel.style.display = 'flex';
+            isReplaying = true;
+            updateStatusMessage();
+        }
+
+        btnFirst.addEventListener('click', () => {
+            replayIndex = 0;
+            updateReplayBoard();
+        });
+
+        btnPrev.addEventListener('click', () => {
+            if (replayIndex > 0) {
+                replayIndex--;
+                updateReplayBoard();
+            }
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (replayIndex < gameHistory.length - 1) {
+                replayIndex++;
+                updateReplayBoard();
+            }
+        });
+
+        btnLast.addEventListener('click', () => {
+            replayIndex = gameHistory.length - 1;
+            updateReplayBoard();
+        });
+
+        function updateReplayBoard() {
+            btnFirst.disabled = replayIndex === 0;
+            btnPrev.disabled = replayIndex === 0;
+            btnNext.disabled = replayIndex >= gameHistory.length - 1;
+            btnLast.disabled = replayIndex >= gameHistory.length - 1;
+
+            const historyState = gameHistory[replayIndex];
+            board = historyState.boardState.map(row => [...row]);
+            itemSlippedState = historyState.slippedState.map(row => [...row]);
+            turn = historyState.activeTurn;
+            replayCounter.textContent = `Reviewing Move: ${replayIndex} / ${gameHistory.length - 1}`;
+            drawBoard();
+        }
+    </script>
+</body>
+</html>

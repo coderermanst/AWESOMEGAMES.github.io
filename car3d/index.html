@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Drift: Total Chaos V3 (JUMP SOLVED)</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background: #111; }
+        #ui {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+            line-height: 1.5;
+            z-index: 10;
+        }
+        .badge { color: #ffcc00; }
+        #gameover {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff3333;
+            font-size: 45px;
+            font-weight: bold;
+            display: none;
+            text-align: center;
+            text-shadow: 3px 3px 6px #000;
+            z-index: 10;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            text-align: center;
+            text-shadow: 1px 1px 2px #000;
+            z-index: 10;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="ui">
+        SCORE: <span id="score">0</span><br>
+        HP: <span id="hp">100</span>%<br>
+        WANTED: <span id="wanted-stars" class="badge">⭐</span> (<span id="kills">0</span> Splats)<br>
+        COP SPEED LEVEL: <span id="difficulty">1.00</span>x<br>
+        CONTROLS: WASD to Drive | <b>SPACEBAR</b> to JUMP!
+    </div>
+
+    <div id="gameover">
+        WASTED<br>
+        <span style="font-size: 22px; color: white;">Refresh to Drive Again</span>
+    </div>
+
+    <div id="instructions">
+        Hit Ramps or press SPACE to jump. Landing ramp jumps awards a SPEED BOOST! Watch out for Helicopters!
+    </div>
+
+    <script>
+        // --- CONFIG & STATE ---
+        const WORLD_SIZE = 250;
+        let score = 0;
+        let pedsHit = 0;
+        let wantedLevel = 1;
+        let hp = 100;
+        let gameOver = false;
+        let globalDifficultyScaling = 1.0; 
+
+        // Controls
+        const keys = { w:false, a:false, s:false, d:false, ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false, ' ':false };
+        
+        window.addEventListener('keydown', (e) => { 
+            if(e.key in keys) {
+                keys[e.key] = true;
+                if(e.key === ' ') {
+                    e.preventDefault(); 
+                }
+            }
+        });
+        window.addEventListener('keyup', (e) => { 
+            if(e.key in keys) keys[e.key] = false; 
+        });
+
+        // --- THREE.JS INITIALIZATION ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x13131c);
+        scene.fog = new THREE.FogExp2(0x13131c, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+        sun.position.set(100, 200, 50);
+        sun.castShadow = true;
+        scene.add(sun);
+
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(WORLD_SIZE*2, WORLD_SIZE*2),
+            new THREE.MeshStandardMaterial({ color: 0x1c1c24, roughness: 0.9 })
+        );
+        ground.rotation.x = -Math.PI/2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        const grid = new THREE.GridHelper(WORLD_SIZE*2, 80, 0x333344, 0x333344);
+        grid.position.y = 0.02;
+        scene.add(grid);
+
+        const buildings = [];
+        const ramps = [];
+        const pedestrians = [];
+        const enemies = [];
+        const projectiles = [];
+
+        // --- MODEL DESIGN COMPOSITIONS ---
+        function createPlayerCar() {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.3 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 4.2), bodyMat);
+            body.position.y = 0.45;
+            body.castShadow = true;
+            group.add(body);
+            
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 2), new THREE.MeshStandardMaterial({ color: 0x111115 }));
+            cabin.position.set(0, 0.95, -0.2);
+            group.add(cabin);
+            
+            group.userData = { bodyMesh: body, defaultColor: 0xff0055 };
+            return group;
+        }
+
+        function createPoliceCar() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.8, 4.2), new THREE.MeshStandardMaterial({ color: 0x0022cc }));
+            body.position.y = 0.45;
+            body.castShadow = true;
+            group.add(body);
+            
+            const siren = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.3), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+            siren.position.set(0, 1.0, 0);
+            group.add(siren);
+            group.userData = { type: 'cop', siren: siren, radius: 2.2, baseSpeed: 0.35, hpDmg: 12 };
+            return group;
+        }
+
+        function createTank() {
+            const group = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 5.5), new THREE.MeshStandardMaterial({ color: 0x445533, roughness: 0.9 }));
+            base.position.y = 0.5;
+            base.castShadow = true;
+            group.add(base);
+            
+            const turret = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.7, 2.5), new THREE.MeshStandardMaterial({ color: 0x334422 }));
+            turret.position.set(0, 1.25, 0);
+            group.add(turret);
+            
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.5), new THREE.MeshStandardMaterial({ color: 0x223311 }));
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.set(0, 1.25, 1.8);
+            group.add(barrel);
+
+            group.userData = { type: 'tank', shootTimer: 0, radius: 3.2, baseSpeed: 0.20, hpDmg: 20 };
+            return group;
+        }
+
+        function createHelicopter() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 5.0), new THREE.MeshStandardMaterial({ color: 0x2f3d2f, roughness: 0.8 }));
+            body.castShadow = true;
+            group.add(body);
+            
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 3.5), new THREE.MeshStandardMaterial({ color: 0x2f3d2f }));
+            tail.position.set(0, 0.4, -3.5);
+            group.add(tail);
+            
+            const rotorHub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.6), new THREE.MeshStandardMaterial({ color: 0x111 }));
+            rotorHub.position.y = 1.1;
+            group.add(rotorHub);
+            
+            const blades = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.05, 0.4), new THREE.MeshStandardMaterial({ color: 0x111 }));
+            blades.position.y = 1.4;
+            group.add(blades);
+
+            group.position.y = 25; 
+            group.userData = { type: 'chopper', blades: blades, shootTimer: 0, radius: 4.0, baseSpeed: 0.30, hpDmg: 5 };
+            return group;
+        }
+
+        function createHuman() {
+            const group = new THREE.Group();
+            const clothesMat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff, roughness: 0.9 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.5), clothesMat);
+            torso.position.y = 1.2;
+            torso.castShadow = true;
+            group.add(torso);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+            head.position.y = 1.95;
+            group.add(head);
+
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, 0.3), new THREE.MeshStandardMaterial({ color: 0x223366 }));
+            legL.position.set(-0.22, 0.35, 0);
+            legL.castShadow = true;
+            group.add(legL);
+
+            const legR = legL.clone();
+            legR.position.x = 0.22;
+            group.add(legR);
+
+            group.userData = { legL: legL, legR: legR, animOffset: Math.random() * 100, dir: new THREE.Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).normalize() };
+            return group;
+        }
+
+        // --- MAP GENERATION ---
+        function generateMap() {
+            for(let i=0; i<35; i++) {
+                let w = Math.random() * 15 + 12;
+                let h = Math.random() * 35 + 15;
+                let d = Math.random() * 15 + 12;
+                const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x252530, roughness: 0.8 }));
+                
+                b.position.set((Math.random() - 0.5) * (WORLD_SIZE * 1.5), h/2, (Math.random() - 0.5) * (WORLD_SIZE * 1.5));
+                
+                if(b.position.distanceTo(new THREE.Vector3(0,0,0)) > 35) {
+                    b.castShadow = true;
+                    b.receiveShadow = true;
+                    scene.add(b);
+                    buildings.push({ mesh: b, halfW: w/2, halfD: d/2 });
+                }
+            }
+
+            for(let i=0; i<15; i++) {
+                const rampGroup = new THREE.Group();
+                const rWidth = 9, rHeight = 5, rLength = 15;
+                const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(rWidth, 0.5, rLength), new THREE.MeshStandardMaterial({ color: 0xffaa00 }));
+                
+                rampMesh.rotation.x = -0.28; 
+                rampMesh.position.set(0, rHeight/2, 0);
+                rampGroup.add(rampMesh);
+
+                rampGroup.position.set((Math.random() - 0.5) * (WORLD_SIZE * 1.4), 0, (Math.random() - 0.5) * (WORLD_SIZE * 1.4));
+                rampGroup.rotation.y = Math.random() * Math.PI * 2;
+
+                if(rampGroup.position.distanceTo(new THREE.Vector3(0,0,0)) > 25) {
+                    scene.add(rampGroup);
+                    ramps.push({ pos: rampGroup.position, rotY: rampGroup.rotation.y, w: rWidth, l: rLength, h: rHeight });
+                }
+            }
+        }
+
+        // --- SETUP SYSTEM ---
+        const player = createPlayerCar();
+        scene.add(player);
+
+        let carSpeed = 0, carAngle = 0, yVelocity = 0, isGrounded = true, rampBoostTimer = 0;
+        let wasInAirOnRamp = false;
+        const maxSpeed = 0.9, acceleration = 0.025, friction = 0.012, turnSpeed = 0.042;
+        let driftVelocity = new THREE.Vector2(0, 0);
+        const driftFactor = 0.92;
+
+        function spawnPedestrian() {
+            const ped = createHuman();
+            ped.position.set((Math.random() - 0.5) * (WORLD_SIZE*1.6), 0, (Math.random() - 0.5) * (WORLD_SIZE*1.6));
+            scene.add(ped);
+            pedestrians.push(ped);
+        }
+
+        function spawnEnemy(forceType = null) {
+            let ent;
+            if (forceType === 'chopper' || (wantedLevel >= 3 && Math.random() > 0.75 && !enemies.some(e => e.userData.type === 'chopper'))) {
+                ent = createHelicopter();
+            } else if (wantedLevel >= 4 && Math.random() > 0.5) {
+                ent = createTank();
+            } else {
+                ent = createPoliceCar();
+            }
+            
+            let angle = Math.random() * Math.PI * 2;
+            let spawnDist = 85;
+            ent.position.set(
+                player.position.x + Math.sin(angle) * spawnDist,
+                (ent.userData.type === 'chopper') ? 22 : 0,
+                player.position.z + Math.cos(angle) * spawnDist
+            );
+            scene.add(ent);
+            enemies.push(ent);
+        }
+
+        generateMap();
+        for(let i=0; i<50; i++) spawnPedestrian();
+        for(let i=0; i<3; i++) spawnEnemy();
+
+        setInterval(() => {
+            if (gameOver) return;
+            globalDifficultyScaling += 0.06;
+            document.getElementById('difficulty').innerText = globalDifficultyScaling.toFixed(2);
+        }, 10000);
+
+        setInterval(() => {
+            if (gameOver) return;
+            let targetMaxCops = wantedLevel * 3 + 2;
+            if(enemies.length < targetMaxCops) spawnEnemy();
+        }, 2500);
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            if (gameOver) return;
+            requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            // 1. CAR ENGINE & INPUT HANDLING
+            const isUp = keys.w || keys.ArrowUp;
+            const isDown = keys.s || keys.ArrowDown;
+            const isLeft = keys.a || keys.ArrowLeft;
+            const isRight = keys.d || keys.ArrowRight;
+
+            let currentMaxSpeed = maxSpeed;
+            if (rampBoostTimer > 0) {
+                rampBoostTimer -= dt;
+                currentMaxSpeed = maxSpeed * 1.65; 
+                player.userData.bodyMesh.material.color.setHex(0x00ffff); 
+            } else {
+                player.userData.bodyMesh.material.color.setHex(player.userData.defaultColor);
+            }
+
+            if (isUp) carSpeed = Math.min(carSpeed + acceleration, currentMaxSpeed);
+            else if (isDown) carSpeed = Math.max(carSpeed - acceleration, -currentMaxSpeed / 2);
+            else {
+                if (carSpeed > 0) carSpeed = Math.max(0, carSpeed - friction);
+                if (carSpeed < 0) carSpeed = Math.min(0, carSpeed + friction);
+            }
+
+            if (Math.abs(carSpeed) > 0.05) {
+                const turnMod = carSpeed > 0 ? 1 : -1;
+                if (isLeft) carAngle += turnSpeed * turnMod;
+                if (isRight) carAngle -= turnSpeed * turnMod;
+            }
+            player.rotation.y = carAngle;
+
+            driftVelocity.x = driftVelocity.x * driftFactor + Math.sin(carAngle) * carSpeed * (1 - driftFactor);
+            driftVelocity.y = driftVelocity.y * driftFactor + Math.cos(carAngle) * carSpeed * (1 - driftFactor);
+
+            player.position.x += driftVelocity.x;
+            player.position.z += driftVelocity.y;
+
+            // FIX: Spacebar jump logic completely bulletproofed from floor clipping interference
+            if (keys[' '] && isGrounded) {
+                yVelocity = 0.5;      // Give it a strong, satisfying upwards push
+                player.position.y += 0.1; // Physically pop it off the floor instantly 
+                isGrounded = false;   
+                keys[' '] = false;    // Reset key state to prevent hovering bugs
+            }
+
+            // 2. RAMPS ENGINE
+            let currentFloorLevel = 0;
+            let currentlyOnRamp = false;
+
+            for(let r of ramps) {
+                let dx = player.position.x - r.pos.x;
+                let dz = player.position.z - r.pos.z;
+                
+                let rotX = dx * Math.cos(-r.rotY) - dz * Math.sin(-r.rotY);
+                let rotZ = dx * Math.sin(-r.rotY) + dz * Math.cos(-r.rotY);
+
+                if (Math.abs(rotX) < r.w/2 && Math.abs(rotZ) < r.l/2) {
+                    let pct = (rotZ + r.l/2) / r.l; 
+                    currentFloorLevel = pct * r.h;
+                    currentlyOnRamp = true;
+                    wasInAirOnRamp = true; 
+                }
+            }
+
+            // Apply continuous Gravity checks
+            if (player.position.y > currentFloorLevel) {
+                yVelocity -= 0.016; 
+                player.position.y += yVelocity;
+                
+                // If we drop below the target floor level during a descent
+                if (player.position.y <= currentFloorLevel) {
+                    player.position.y = currentFloorLevel;
+                    yVelocity = 0;
+                    
+                    if (!isGrounded && wasInAirOnRamp && !currentlyOnRamp) {
+                        rampBoostTimer = 3.5; 
+                        score += 250;
+                        wasInAirOnRamp = false;
+                    }
+                    isGrounded = true;
+                }
+            } else if (player.position.y < currentFloorLevel) {
+                // If the car drives onto a ramp platform surface
+                player.position.y = currentFloorLevel;
+                yVelocity = 0;
+                isGrounded = true;
+            } else {
+                isGrounded = true;
+            }
+
+            // 3. WALL BOUNCING REFLECTION
+            buildings.forEach(b => {
+                let minX = b.mesh.position.x - b.halfW - 1.0;
+                let maxX = b.mesh.position.x + b.halfW + 1.0;
+                let minZ = b.mesh.position.z - b.halfD - 1.0;
+                let maxZ = b.mesh.position.z + b.halfD + 1.0;
+
+                if(player.position.x > minX && player.position.x < maxX && player.position.z > minZ && player.position.z < maxZ) {
+                    let overlapX = Math.min(maxX - player.position.x, player.position.x - minX);
+                    let overlapZ = Math.min(maxZ - player.position.z, player.position.z - minZ);
+
+                    if (overlapX < overlapZ) {
+                        driftVelocity.x *= -1.4; 
+                        player.position.x += (player.position.x > b.mesh.position.x ? 0.3 : -0.3);
+                    } else {
+                        driftVelocity.y *= -1.4;
+                        player.position.z += (player.position.z > b.mesh.position.z ? 0.3 : -0.3);
+                    }
+                    carSpeed *= -0.6; 
+                    hp -= 2;          
+                    document.getElementById('hp').innerText = Math.max(0, Math.floor(hp));
+                }
+            });
+
+            player.position.x = Math.max(-WORLD_SIZE, Math.min(WORLD_SIZE, player.position.x));
+            player.position.z = Math.max(-WORLD_SIZE, Math.min(WORLD_SIZE, player.position.z));
+
+            // Camera Viewport follows Car Mesh
+            camera.position.x = player.position.x - Math.sin(carAngle) * 15;
+            camera.position.z = player.position.z - Math.cos(carAngle) * 15;
+            camera.position.y = player.position.y + 8.5;
+            camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
+            // 4. MOVING PEDESTRIANS
+            for (let i = pedestrians.length - 1; i >= 0; i--) {
+                let p = pedestrians[i];
+                
+                p.position.x += p.userData.dir.x * 0.05;
+                p.position.z += p.userData.dir.z * 0.05;
+
+                let swing = Math.sin(time * 8 + p.userData.animOffset) * 0.4;
+                p.userData.legL.rotation.x = swing;
+                p.userData.legR.rotation.x = -swing;
+
+                if(Math.abs(p.position.x) > WORLD_SIZE || Math.abs(p.position.z) > WORLD_SIZE) {
+                    p.userData.dir.negate();
+                }
+
+                if(player.position.distanceTo(p.position) < 2.2 && Math.abs(player.position.y - p.position.y) < 1.6) {
+                    scene.remove(p);
+                    pedestrians.splice(i, 1);
+                    pedsHit++;
+                    score += 100;
+                    
+                    if(pedsHit === 3) wantedLevel = 2;
+                    if(pedsHit === 8) { wantedLevel = 3; spawnEnemy('chopper'); }
+                    if(pedsHit === 15) wantedLevel = 4;
+                    if(pedsHit === 25) wantedLevel = 5;
+
+                    document.getElementById('score').innerText = score;
+                    document.getElementById('kills').innerText = pedsHit;
+                    document.getElementById('wanted-stars').innerText = "⭐".repeat(wantedLevel);
+                    
+                    spawnPedestrian();
+                }
+            }
+
+            // 5. ENEMY CHASE LOGIC
+            for (let i = 0; i < enemies.length; i++) {
+                let e = enemies[i];
+                let dynamicSpeed = e.userData.baseSpeed * globalDifficultyScaling;
+
+                if (e.userData.type === 'chopper') {
+                    e.userData.blades.rotation.y += 0.4;
+                    
+                    let targetPos = new THREE.Vector3(player.position.x, 22, player.position.z);
+                    e.lookAt(player.position.x, e.position.y, player.position.z);
+                    e.position.lerp(targetPos, 0.02 * globalDifficultyScaling);
+
+                    e.userData.shootTimer += dt;
+                    if (e.userData.shootTimer > 1.2 && e.position.distanceTo(player.position) < 40) {
+                        e.userData.shootTimer = 0;
+                        let laser = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                        laser.position.copy(e.position);
+                        laser.lookAt(player.position);
+                        laser.rotation.x += Math.PI/2;
+                        
+                        let vel = new THREE.Vector3().subVectors(player.position, e.position).normalize().multiplyScalar(0.9);
+                        projectiles.push({ mesh: laser, vel: vel, type: 'laser' });
+                        scene.add(laser);
+                    }
+                } else {
+                    e.lookAt(player.position.x, e.position.y, player.position.z);
+                    e.translateZ(dynamicSpeed);
+
+                    if(e.userData.type === 'cop') {
+                        e.userData.siren.material.color.setHex((Math.floor(Date.now() / 150) % 2 === 0) ? 0xff0000 : 0x0000ff);
+                    }
+
+                    if(e.userData.type === 'tank') {
+                        e.userData.shootTimer += dt;
+                        if(e.userData.shootTimer > 2.8 && e.position.distanceTo(player.position) < 60) {
+                            e.userData.shootTimer = 0;
+                            let shell = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+                            shell.position.copy(e.position).y = 1.2;
+                            let vel = new THREE.Vector3().subVectors(player.position, shell.position).normalize().multiplyScalar(0.85);
+                            projectiles.push({ mesh: shell, vel: vel, type: 'shell' });
+                            scene.add(shell);
+                        }
+                    }
+
+                    for(let j = i + 1; j < enemies.length; j++) {
+                        let other = enemies[j];
+                        if (other.userData.type === 'chopper') continue;
+                        let rSum = e.userData.radius + other.userData.radius;
+                        if(e.position.distanceTo(other.position) < rSum) {
+                            let push = new THREE.Vector3().subVectors(other.position, e.position).normalize().multiplyScalar(0.15);
+                            other.position.add(push);
+                            e.position.sub(push);
+                        }
+                    }
+
+                    if(e.position.distanceTo(player.position) < e.userData.radius && Math.abs(player.position.y - e.position.y) < 1.5) {
+                        hp -= e.userData.hpDmg * dt;
+                        document.getElementById('hp').innerText = Math.max(0, Math.floor(hp));
+                        e.translateZ(-4.0); 
+                    }
+                }
+
+                if(hp <= 0) {
+                    gameOver = true;
+                    document.getElementById('gameover').style.display = 'block';
+                }
+            }
+
+            // 6. PROJECTILES UPDATER
+            for(let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.mesh.position.add(p.vel);
+
+                if(p.mesh.position.distanceTo(player.position) < 2.2 && Math.abs(p.mesh.position.y - player.position.y) < 2.0) {
+                    hp -= (p.type === 'laser') ? 4 : 18; 
+                    document.getElementById('hp').innerText = Math.max(0, Math.floor(hp));
+                    scene.remove(p.mesh);
+                    projectiles.splice(i, 1);
+                    
+                    if(hp <= 0) {
+                        gameOver = true;
+                        document.getElementById('gameover').style.display = 'block';
+                    }
+                    continue;
+                }
+
+                if(p.mesh.position.distanceTo(player.position) > 120) {
+                    scene.remove(p.mesh);
+                    projectiles.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
